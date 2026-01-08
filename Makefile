@@ -2,22 +2,22 @@ CC = gcc
 CFLAGS = -O2 -Wall -Wextra -g -std=c99
 LDFLAGS = -lm
 
-TARGET = intfp_example
-SRCS = main.c
-OBJS = $(SRCS:.c=.o)
+TEST_TARGET = test_intfp
+TEST_SRCS = test_intfp.c
+TEST_OBJS = $(TEST_SRCS:.c=.o)
 
-.PHONY: all clean run
+.PHONY: all clean test
 
-all: $(TARGET)
+all: $(TEST_TARGET)
 
-$(TARGET): $(OBJS)
+$(TEST_TARGET): $(TEST_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 %.o: %.c intfp.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-run: all
-	./$(TARGET)
+test: $(TEST_TARGET)
+	./$(TEST_TARGET)
 
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -f $(TEST_OBJS) $(TEST_TARGET)
