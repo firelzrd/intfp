@@ -193,7 +193,7 @@ u##lbits u##hbits##_to_loc##lbits##fp(u##hbits v, u8 ofp) { \
 	if (v <= 1) return !v; /* Special encoding: v=0 -> 1, v=1 -> 0 */ \
 	u8 e = __intfp_log2(v, hbits); /* e = floor(log2(v)) */ \
 	/* Normalize v, discard the implicit leading '1', and scale to mantissa size */ \
-	u##lbits m = v << (hbits-1 - e) << 1 >> (hbits - ofp); \
+	u##lbits m = (u##hbits)(v << (hbits-1 - e) << 1) >> (hbits - ofp); \
 	return ((u##lbits)e << ofp) | m; /* Combine exponent and mantissa */ \
 } \
 /** @brief Converts to 'loc' using the maximum possible precision for the mantissa. */ \
@@ -267,7 +267,7 @@ u##hbits loc##lbits##fpmax_to_u##hbits(u##hbits v) { \
 s##lbits u##hbits##fp_to_log##lbits##fp(u##hbits v, u8 ifp, u8 ofp) { \
 	if (v == 0) return intfp_log_0(lbits); \
 	u8 e = __intfp_log2(v, hbits); /* e = floor(log2(v)) */ \
-	u##lbits m = v << (hbits-1 - e) << 1 >> (hbits - ofp); \
+	u##lbits m = (u##hbits)(v << (hbits-1 - e) << 1) >> (hbits - ofp); \
 	/* Adjust exponent by subtracting the fixed-point fractional bit count */ \
 	u##lbits adj = (u##lbits)ifp << ofp; \
 	return (s##lbits)((((u##lbits)e << ofp) | m) - adj); \
