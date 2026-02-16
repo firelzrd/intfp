@@ -35,7 +35,7 @@
  * 1.  **Linear Fixed-Point:** A standard integer-based representation for
  *     fractional numbers, serving as the foundation for other formats.
  *
- * 2.  **Unsigned Logarithmic Compressed (loc):** A memory-efficient, unsigned,
+ * 2.  **Packed Unsigned Log (pul):** A memory-efficient, unsigned,
  *     pseudo-logarithmic format. It excels at compressing large numerical
  *     values into a smaller bit-width for storage or transmission. Note that
  *     this format is not directly suited for arithmetic operations.
@@ -50,11 +50,11 @@
  * - **High-Speed Computation:** Utilizes compiler intrinsics (`__builtin_clz`)
  *   for extremely fast conversion to a pseudo-logarithmic representation,
  *   avoiding costly standard math library calls.
- * - **Memory Efficiency:** The `loc` format significantly reduces the data
+ * - **Memory Efficiency:** The `pul` format significantly reduces the data
  *   footprint of large integer datasets.
  * - **High Flexibility:** Employs extensive preprocessor macros to generate
  *   conversion functions for a wide range of bit-width combinations (e.g.,
- *   u64 to loc16, log8 to log32), allowing fine-tuning for specific needs.
+ *   u64 to pul16, log8 to log32), allowing fine-tuning for specific needs.
  * - **Practical Utilities:** Includes ready-to-use functions for Exponentially
  *   Weighted Moving Average (EWMA) and radix conversion (e.g., to decibels).
  *
@@ -118,11 +118,11 @@
 #define intfp_signed_max(bits) ((s##bits)((u##bits)-1 & ~((u##bits)1 << (bits-1))))
 
 /**
- * @brief Defines the special representation for the value '0' in 'loc' format.
- * In 'loc' representation, 0 is mapped to 1 to distinguish it from the
+ * @brief Defines the special representation for the value '0' in 'pul' format.
+ * In 'pul' representation, 0 is mapped to 1 to distinguish it from the
  * value '1', which is mapped to 0.
  */
-#define intfp_loc_0(bits) intfp_unsigned_min(bits)
+#define intfp_pul_0(bits) intfp_unsigned_min(bits)
 
 /**
  * @brief Defines the special representation for the value '0' in 'log' format.
@@ -132,17 +132,17 @@
 #define intfp_log_0(bits) intfp_signed_min(bits)
 
 /**
- * @brief Calculates the optimal number of exponent bits for a 'loc' conversion.
+ * @brief Calculates the optimal number of exponent bits for a 'pul' conversion.
  *
  * This function determines the ideal number of bits to allocate for the exponent
- * field in a 'loc' representation to maximize the precision of the mantissa.
+ * field in a 'pul' representation to maximize the precision of the mantissa.
  *
  * @param int_bits The bit-width of the source integer type (e.g., 64 for u64).
- * @param loc_bits The bit-width of the destination 'loc' type (e.g., 32 for loc32).
- * @return The optimal number of exponent bits for the 'loc' format.
+ * @param pul_bits The bit-width of the destination 'pul' type (e.g., 32 for pul32).
+ * @return The optimal number of exponent bits for the 'pul' format.
  */
-u8 intfp_loc_fpmax(u8 int_bits, u8 loc_bits) {
-	return loc_bits - intfp_fls32(int_bits-1);
+u8 intfp_pul_fpmax(u8 int_bits, u8 pul_bits) {
+	return pul_bits - intfp_fls32(int_bits-1);
 }
 
 /**
@@ -153,18 +153,18 @@ u8 intfp_loc_fpmax(u8 int_bits, u8 loc_bits) {
  * the precision of the mantissa.
  *
  * @param int_bits The bit-width of the source integer type (e.g., 64 for u64).
- * @param loc_bits The bit-width of the destination 'log' type (e.g., 32 for log32).
+ * @param pul_bits The bit-width of the destination 'log' type (e.g., 32 for log32).
  * @return The optimal number of exponent bits for the 'log' format.
  */
-u8 intfp_log_fpmax(u8 int_bits, u8 loc_bits) {
-	return loc_bits-1 - intfp_fls32(int_bits-1);
+u8 intfp_log_fpmax(u8 int_bits, u8 pul_bits) {
+	return pul_bits-1 - intfp_fls32(int_bits-1);
 }
 
 /**
  * @brief Generates the core conversion functions between integer, fixed-point,
- * 'loc', and 'log' representations.
+ * 'pul', and 'log' representations.
  * @param hbits The bit-width of the source/destination integer or fixed-point type.
- * @param lbits The bit-width of the destination/source 'loc' or 'log' type.
+ * @param lbits The bit-width of the destination/source 'pul' or 'log' type.
  */
 #define INTFP_DECL_HBITS_LBITS(hbits, lbits) \
 /* --- Standard Integer <-> Fixed-Point Conversions --- */ \
@@ -185,9 +185,9 @@ s##lbits s##hbits##fp_to_s##lbits(s##hbits v, u8 fp) { \
 	return v >> fp; \
 } \
 \
-/* --- Unsigned Logarithmic Compressed ('loc') Representation --- */ \
+/* --- Packed Unsigned Log ('pul') Representation --- */ \
 /** \
- * The 'loc' format approximates an unsigned integer in a compact, logarithmic form. \
+ * The 'pul' format approximates an unsigned integer in a compact, logarithmic form. \
  * It is composed of an exponent and a mantissa: | exponent | mantissa | \
  * - Ideal for storage or network transmission to save space. \
  * - Provides high precision for its bit size. \
@@ -196,35 +196,35 @@ s##lbits s##hbits##fp_to_s##lbits(s##hbits v, u8 fp) { \
  */ \
 \
 /** \
- * @brief Converts an unsigned integer to its 'loc' representation. \
+ * @brief Converts an unsigned integer to its 'pul' representation. \
  * @param v The input unsigned integer. \
- * @param ofp The number of bits to use for mantissa in the output 'loc' value. \
+ * @param ofp The number of bits to use for mantissa in the output 'pul' value. \
  *            The remaining bits (lbits - ofp) will be used for the mantissa. \
  *            The range is 1 to (lbits - 1 - fls(lbits)). \
- * @return The 'loc' representation of the value. \
+ * @return The 'pul' representation of the value. \
  */ \
-u##lbits u##hbits##_to_loc##lbits##fp(u##hbits v, u8 ofp) { \
+u##lbits u##hbits##_to_pul##lbits##fp(u##hbits v, u8 ofp) { \
 	if (v <= 1) return !v; /* Special encoding: v=0 -> 1, v=1 -> 0 */ \
 	u8 clz = __intfp_clz(v, hbits); \
 	/* Keep implicit leading 1 in mantissa; addition carries it into exponent */ \
 	u##lbits m = (u##hbits)(v << clz) >> (hbits - 1 - ofp); \
 	return ((u##lbits)(hbits - 2 - clz) << ofp) + m; \
 } \
-/** @brief Converts to 'loc' using the maximum possible precision for the mantissa. */ \
-u##lbits u##hbits##_to_loc##lbits##fpmax(u##hbits v) { \
-	return u##hbits##_to_loc##lbits##fp( \
-		v, intfp_loc_fpmax(hbits, lbits)); \
+/** @brief Converts to 'pul' using the maximum possible precision for the mantissa. */ \
+u##lbits u##hbits##_to_pul##lbits##fpmax(u##hbits v) { \
+	return u##hbits##_to_pul##lbits##fp( \
+		v, intfp_pul_fpmax(hbits, lbits)); \
 } \
 \
 /** \
- * @brief Converts a 'loc' representation back to an unsigned integer. \
- * @param v The input 'loc' value. \
- * @param ifp The number of bits used for the exponent in the input 'loc' value. \
+ * @brief Converts a 'pul' representation back to an unsigned integer. \
+ * @param v The input 'pul' value. \
+ * @param ifp The number of bits used for the exponent in the input 'pul' value. \
  *            The range is 1 to (hbits - 1 - fls(hbits)). \
  * @return The reconstructed unsigned integer. Returns max value on overflow. \
  */ \
-u##hbits loc##lbits##fp_to_u##hbits(u##lbits v, u8 ifp) { \
-	if (v == intfp_loc_0(lbits)) return 0; /* loc value of 1 represents 0 */ \
+u##hbits pul##lbits##fp_to_u##hbits(u##lbits v, u8 ifp) { \
+	if (v == intfp_pul_0(lbits)) return 0; /* pul value of 1 represents 0 */ \
 	u##lbits e = v >> ifp; /* Extract exponent */ \
 	if (e >= hbits) return intfp_unsigned_max(hbits); /* Avoid overflow */ \
 	u##hbits m = v & intfp_bitmask(ifp - 1, lbits); /* Extract mantissa */ \
@@ -233,10 +233,10 @@ u##hbits loc##lbits##fp_to_u##hbits(u##lbits v, u8 ifp) { \
 	/* De-normalize by shifting right based on the exponent */ \
 	return norm >> (hbits-1 - e); \
 } \
-/** @brief Converts from 'loc' using the maximum possible precision for the mantissa. */ \
-u##hbits loc##lbits##fpmax_to_u##hbits(u##hbits v) { \
-	return loc##lbits##fp_to_u##hbits( \
-		v, intfp_loc_fpmax(hbits, lbits)); \
+/** @brief Converts from 'pul' using the maximum possible precision for the mantissa. */ \
+u##hbits pul##lbits##fpmax_to_u##hbits(u##hbits v) { \
+	return pul##lbits##fp_to_u##hbits( \
+		v, intfp_pul_fpmax(hbits, lbits)); \
 } \
 \
 /* --- Signed Logarithmic ('log') Representation --- */ \
@@ -245,7 +245,7 @@ u##hbits loc##lbits##fpmax_to_u##hbits(u##hbits v) { \
  * It is composed of a sign, exponent, and mantissa: | sign | exponent | mantissa | \
  * - Calculatable: Supports operations like multiplication/division via addition/subtraction. \
  * - Can represent values less than 1.0 (as negative log values). \
- * - Precision is slightly lower than 'loc' due to the sign bit. \
+ * - Precision is slightly lower than 'pul' due to the sign bit. \
  * - Special encoding for zero: intfp_log_0(bits), which is the most negative value. \
  * \
  * @warning --- Approximation Method --- \
@@ -275,7 +275,7 @@ u##hbits loc##lbits##fpmax_to_u##hbits(u##hbits v) { \
  * \
  * @param v The input unsigned fixed-point value. \
  * @param ifp The number of fractional bits in the input fixed-point value `v`. \
- * @param ofp The number of bits to use for mantissa in the output 'loc' value. \
+ * @param ofp The number of bits to use for mantissa in the output 'log' value. \
  * @return The approximate 'log' representation of the value. \
  */ \
 s##lbits u##hbits##fp_to_log##lbits##fp(u##hbits v, u8 ifp, u8 ofp) { \
@@ -449,25 +449,25 @@ INTFP_DECL_HBITS_LBITS(64,64)
 
 
 /**
- * @brief Generates functions for converting between different 'loc' and 'log' types.
+ * @brief Generates functions for converting between different 'pul' and 'log' types.
  * These functions allow changing the bit-width (e.g., log8 to log16) or the
  * exponent/mantissa allocation within the same bit-width.
- * @param ibits The bit-width of the input 'loc'/'log' type.
- * @param obits The bit-width of the output 'loc'/'log' type.
+ * @param ibits The bit-width of the input 'pul'/'log' type.
+ * @param obits The bit-width of the output 'pul'/'log' type.
  */
 #define INTFP_DECL_IBITS_OBITS(ibits, obits) \
 /* --- In-type conversions (bit-width and exponent/mantissa ratio changes) --- */ \
 \
-/** @brief Converts a 'loc' value to another 'loc' type, adjusting for exponent bits. */ \
-u##obits loc##ibits##fp_to_loc##obits##fp(u##ibits v, u8 ifp, u8 ofp) { \
-	if (v == intfp_loc_0(ibits)) return intfp_loc_0(obits); \
+/** @brief Converts a 'pul' value to another 'pul' type, adjusting for exponent bits. */ \
+u##obits pul##ibits##fp_to_pul##obits##fp(u##ibits v, u8 ifp, u8 ofp) { \
+	if (v == intfp_pul_0(ibits)) return intfp_pul_0(obits); \
 	/* Conversion is a simple shift if the exponent bit allocation changes. */ \
 	return (ifp == ofp) ? v : ((ifp < ofp) ? \
 		(v << (ofp - ifp)): (v >> (ifp - ofp))); \
 } \
-/** @brief Converts 'loc' to 'loc' using max precision settings for both. */ \
-u##obits loc##ibits##fpmax_to_loc##obits##fpmax(u##ibits v) { \
-	return loc##ibits##fp_to_loc##obits##fp( \
+/** @brief Converts 'pul' to 'pul' using max precision settings for both. */ \
+u##obits pul##ibits##fpmax_to_pul##obits##fpmax(u##ibits v) { \
+	return pul##ibits##fp_to_pul##obits##fp( \
 		v, ibits - intfp_fls32(ibits-1), obits - intfp_fls32(ibits-1)); \
 } \
 /** @brief Converts a 'log' value to another 'log' type, adjusting for exponent bits. */ \
@@ -482,30 +482,30 @@ s##obits log##ibits##fpmax_to_log##obits##fpmax(s##ibits v) { \
 		v, ibits-1 - intfp_fls32(ibits-1), obits-1 - intfp_fls32(ibits-1)); \
 } \
 \
-/* --- Inter-type conversions ('loc' <-> 'log') --- */ \
+/* --- Inter-type conversions ('pul' <-> 'log') --- */ \
 \
-/** @brief Converts a 'loc' value to a 'log' value. */ \
-s##obits loc##ibits##fp_to_log##obits##fp(u##ibits v, u8 ifp, u8 ofp) { \
-	if (v == intfp_loc_0(ibits)) return intfp_log_0(obits); \
-	/* Since 'loc' is always positive, this is just a bit-width/ratio change. */ \
+/** @brief Converts a 'pul' value to a 'log' value. */ \
+s##obits pul##ibits##fp_to_log##obits##fp(u##ibits v, u8 ifp, u8 ofp) { \
+	if (v == intfp_pul_0(ibits)) return intfp_log_0(obits); \
+	/* Since 'pul' is always positive, this is just a bit-width/ratio change. */ \
 	return (ifp == ofp) ? v : ((ifp < ofp) ? \
 		(v << (ofp - ifp)): (v >> (ifp - ofp))); \
 } \
-/** @brief Converts 'loc' (max precision) to 'log' (max precision). */ \
-s##obits loc##ibits##fpmax_to_log##obits##fpmax(u##ibits v) { \
-	return loc##ibits##fp_to_log##obits##fp( \
+/** @brief Converts 'pul' (max precision) to 'log' (max precision). */ \
+s##obits pul##ibits##fpmax_to_log##obits##fpmax(u##ibits v) { \
+	return pul##ibits##fp_to_log##obits##fp( \
 		v, ibits - intfp_fls32(ibits-1), obits-1 - intfp_fls32(ibits-1)); \
 } \
-/** @brief Converts a 'log' value to a 'loc' value. */ \
-u##obits log##ibits##fp_to_loc##obits##fp(s##ibits v, u8 ifp, u8 ofp) { \
-	/* 'loc' cannot represent negative 'log' values (i.e., values < 1.0) */ \
-	if (v < 0) return intfp_loc_0(obits); \
+/** @brief Converts a 'log' value to a 'pul' value. */ \
+u##obits log##ibits##fp_to_pul##obits##fp(s##ibits v, u8 ifp, u8 ofp) { \
+	/* 'pul' cannot represent negative 'log' values (i.e., values < 1.0) */ \
+	if (v < 0) return intfp_pul_0(obits); \
 	return (ifp == ofp) ? (u##obits)v : (u##obits)((ifp < ofp) ? \
 		((u##ibits)v << (ofp - ifp)): ((u##ibits)v >> (ifp - ofp))); \
 } \
-/** @brief Converts 'log' (max precision) to 'loc' (max precision). */ \
-u##obits log##ibits##fpmax_to_loc##obits##fpmax(s##ibits v) { \
-	return log##ibits##fp_to_loc##obits##fp( \
+/** @brief Converts 'log' (max precision) to 'pul' (max precision). */ \
+u##obits log##ibits##fpmax_to_pul##obits##fpmax(s##ibits v) { \
+	return log##ibits##fp_to_pul##obits##fp( \
 		v, ibits-1 - intfp_fls32(ibits-1), obits - intfp_fls32(ibits-1)); \
 }
 

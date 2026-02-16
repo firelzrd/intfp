@@ -40,7 +40,7 @@ void print_usage(const char *prog_name) {
     printf("Usage: %s [options]\n", prog_name);
     printf("Options:\n");
     printf("  -b                  Run basic conversion test\n");
-    printf("  -c                  Run LOC compression test\n");
+    printf("  -c                  Run PUL compression test\n");
     printf("  -e                  Run EWMA functions test\n");
     printf("  -l                  Run log arithmetic test\n");
     printf("  -p                  Run precision test\n");
@@ -137,13 +137,13 @@ int test_basic_conversion(bool verbose) {
     return passed ? 1 : 0;
 }
 
-// Test: LOC format compression
-int test_loc_compression(bool verbose) {
+// Test: PUL format compression
+int test_pul_compression(bool verbose) {
     tests_run++;
     int passed = true;
 
     if (verbose) {
-        printf("\n=== Testing LOC Format Compression ===\n");
+        printf("\n=== Testing PUL Format Compression ===\n");
     }
 
     // Test data compression ratio demonstration
@@ -151,37 +151,37 @@ int test_loc_compression(bool verbose) {
     
     for (int i = 0; i < 4; i++) {
         u64 val = original_data[i];
-        u32 loc_val = u64_to_loc16fpmax(val);
-        u64 recovered = loc16fpmax_to_u64(loc_val);
+        u32 pul_val = u64_to_pul16fpmax(val);
+        u64 recovered = pul16fpmax_to_u64(pul_val);
 
         if (verbose) {
-            printf("Test: LOC compression for value %llu\n", (unsigned long long)val);
+            printf("Test: PUL compression for value %llu\n", (unsigned long long)val);
             printf("  Original:   %llu (%016llx)\n", (unsigned long long)val, (unsigned long long)val);
-            printf("  Compressed: %u (%04x)\n", loc_val, loc_val);
+            printf("  Compressed: %u (%04x)\n", pul_val, pul_val);
             printf("  Recovered:  %llu\n", (unsigned long long)recovered);
             print_percentage_error(val, recovered);
         }
     }
 
     // Test special encoding for 0 and 1
-    u32 loc_zero = u64_to_loc16fpmax(0ULL);
-    u32 loc_one = u64_to_loc16fpmax(1ULL);
+    u32 pul_zero = u64_to_pul16fpmax(0ULL);
+    u32 pul_one = u64_to_pul16fpmax(1ULL);
 
     if (verbose) {
         printf("Test: Special encoding\n");
-        printf("  LOC of 0: %u (expected special value)\n", loc_zero);
-        printf("  LOC of 1: %u (expected special value)\n", loc_one);
+        printf("  PUL of 0: %u (expected special value)\n", pul_zero);
+        printf("  PUL of 1: %u (expected special value)\n", pul_one);
     }
 
     // Verify special encoding
-    if (loc_zero != intfp_unsigned_min(16) || loc_one != 0) {
+    if (pul_zero != intfp_unsigned_min(16) || pul_one != 0) {
         passed = false;
     }
 
     if (passed) tests_passed++;
     else tests_failed++;
 
-    print_test_summary("LOC Compression", passed);
+    print_test_summary("PUL Compression", passed);
 
     return passed ? 1 : 0;
 }
@@ -507,7 +507,7 @@ void run_all_tests(bool verbose) {
 
     // Run each test (print_test_summary is called inside each test function)
     test_basic_conversion(verbose);
-    test_loc_compression(verbose);
+    test_pul_compression(verbose);
     test_ewma(verbose);
     test_log_arithmetic(verbose);
     test_precision(verbose);
@@ -531,7 +531,7 @@ int main(int argc, char *argv[]) {
     bool verbose = false;
     int test_mask = 0; // Bitmask for selected tests
 #define TEST_BASIC      0x01
-#define TEST_LOC        0x02
+#define TEST_PUL        0x02
 #define TEST_EWMA       0x04
 #define TEST_LOG        0x08
 #define TEST_PRECISION  0x10
@@ -550,7 +550,7 @@ int main(int argc, char *argv[]) {
                 test_mask |= TEST_BASIC;
                 break;
             case 'c':
-                test_mask |= TEST_LOC;
+                test_mask |= TEST_PUL;
                 break;
             case 'e':
                 test_mask |= TEST_EWMA;
@@ -592,8 +592,8 @@ int main(int argc, char *argv[]) {
         if (test_mask & TEST_BASIC) {
             test_basic_conversion(verbose);
         }
-        if (test_mask & TEST_LOC) {
-            test_loc_compression(verbose);
+        if (test_mask & TEST_PUL) {
+            test_pul_compression(verbose);
         }
         if (test_mask & TEST_EWMA) {
             test_ewma(verbose);
