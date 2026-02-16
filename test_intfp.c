@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <math.h>
 #include <getopt.h>
 
 // Type aliases used by intfp.h
@@ -42,6 +43,7 @@ void print_usage(const char *prog_name) {
     printf("  -c                  Run LOC compression test\n");
     printf("  -e                  Run EWMA functions test\n");
     printf("  -l                  Run log arithmetic test\n");
+    printf("  -p                  Run precision test\n");
     printf("  -r                  Run radix conversion test\n");
     printf("  -v, --verbose       Verbose output\n");
     printf("  -h, --help          Show this help message\n");
@@ -268,6 +270,198 @@ int test_log_arithmetic(bool verbose) {
     return passed ? 1 : 0;
 }
 
+// Test: Precision of polynomial-corrected log arithmetic
+int test_precision(bool verbose) {
+    tests_run++;
+    int passed = true;
+
+    if (verbose) {
+        printf("\n=== Testing Polynomial Correction Precision ===\n");
+    }
+
+    // Test 1: Log-domain encoding accuracy (u32 -> clog32)
+    // Compare corrected encoded value against true log2 computed via math library
+    {
+        double max_err = 0.0, sum_err = 0.0;
+        u64 worst_val = 0;
+        int count = 0;
+        u8 ofp = intfp_log_fpmax(32, 32);
+        double scale = (double)((u32)1 << ofp);
+
+        // Test a range of values spanning multiple powers of 2
+        for (u32 base = 2; base < (1U << 20); base += (base < 1024 ? 1 : base / 64)) {
+            s32 log_val = u32_to_clog32fp(base, ofp);
+            // Extract the encoded fractional log2 value
+            double encoded_log2 = (double)log_val / scale;
+            double true_log2 = log2((double)base);
+            double err = fabs(encoded_log2 - true_log2);
+            if (err > max_err) {
+                max_err = err;
+                worst_val = base;
+            }
+            sum_err += err;
+            count++;
+        }
+
+        double avg_err = sum_err / count;
+        if (verbose) {
+            printf("Test: Log-domain encoding accuracy (u32 -> log32, ofp=%u)\n", ofp);
+            printf("  Samples: %d\n", count);
+            printf("  Max log-domain error: %.6f (at value %llu)\n",
+                   max_err, (unsigned long long)worst_val);
+            printf("  Avg log-domain error: %.6f\n", avg_err);
+            printf("  (Uncorrected max would be ~0.0861)\n");
+        }
+
+        // Corrected max error should be well below uncorrected 0.0861
+        if (max_err > 0.02) {
+            if (verbose) printf("  FAIL: Max error %.6f exceeds threshold 0.02\n", max_err);
+            passed = false;
+        }
+    }
+
+    // Test 2: E2E multiplication precision
+    {
+        double max_err_pct = 0.0, sum_err_pct = 0.0;
+        u64 worst_a = 0, worst_b = 0;
+        int count = 0;
+
+        u32 test_values[] = {
+            3, 5, 7, 10, 13, 17, 25, 33, 50, 64, 100, 127, 128, 200,
+            255, 256, 300, 500, 700, 1000, 1500, 2000, 3000, 5000,
+            7500, 10000, 15000, 20000, 30000, 50000, 65535
+        };
+        int n_values = sizeof(test_values) / sizeof(test_values[0]);
+
+        for (int i = 0; i < n_values; i++) {
+            for (int j = i; j < n_values; j++) {
+                u64 a = test_values[i];
+                u64 b = test_values[j];
+                u64 expected = a * b;
+
+                s32 log_a = u64_to_clog32fpmax(a);
+                s32 log_b = u64_to_clog32fpmax(b);
+                s32 log_product = log_a + log_b;
+                u64 recovered = clog32fpmax_to_u64(log_product);
+
+                double err_pct = (expected > 0) ?
+                    fabs((double)recovered - (double)expected) / (double)expected * 100.0 : 0.0;
+
+                /* Skip products < 100 for max error tracking (quantization dominates) */
+                if (err_pct > max_err_pct && expected >= 100) {
+                    max_err_pct = err_pct;
+                    worst_a = a;
+                    worst_b = b;
+                }
+                sum_err_pct += err_pct;
+                count++;
+            }
+        }
+
+        double avg_err_pct = sum_err_pct / count;
+        if (verbose) {
+            printf("Test: E2E multiplication precision (u64 via log32)\n");
+            printf("  Pairs tested: %d\n", count);
+            printf("  Max relative error: %.4f%% (at %llu * %llu)\n",
+                   max_err_pct, (unsigned long long)worst_a, (unsigned long long)worst_b);
+            printf("  Avg relative error: %.4f%%\n", avg_err_pct);
+            printf("  (Uncorrected max would be ~11.1%%)\n");
+        }
+
+        // Corrected E2E error should be well below uncorrected ~11.1%
+        if (max_err_pct > 3.0) {
+            if (verbose) printf("  FAIL: Max error %.4f%% exceeds threshold 3.0%%\n", max_err_pct);
+            passed = false;
+        }
+    }
+
+    // Test 3: Boundary values
+    {
+        bool boundary_ok = true;
+
+        // Zero must be preserved
+        s32 log_zero = u64_to_clog32fpmax(0ULL);
+        if (log_zero != intfp_log_0(32)) boundary_ok = false;
+        u64 dec_zero = clog32fpmax_to_u64(intfp_log_0(32));
+        if (dec_zero != 0) boundary_ok = false;
+
+        // Value 1 must round-trip reasonably
+        s32 log_one = u64_to_clog32fpmax(1ULL);
+        u64 dec_one = clog32fpmax_to_u64(log_one);
+        if (dec_one == 0 || dec_one > 2) boundary_ok = false;
+
+        // Powers of 2 should have minimal error
+        for (int p = 1; p < 40; p++) {
+            u64 val = 1ULL << p;
+            s32 log_val = u64_to_clog32fpmax(val);
+            u64 recovered = clog32fpmax_to_u64(log_val);
+            double err_pct = fabs((double)recovered - (double)val) / (double)val * 100.0;
+            if (err_pct > 1.0) {
+                if (verbose) printf("  Power of 2 error: 2^%d = %llu -> %llu (%.4f%%)\n",
+                                    p, (unsigned long long)val, (unsigned long long)recovered, err_pct);
+                boundary_ok = false;
+            }
+        }
+
+        if (!boundary_ok) {
+            if (verbose) printf("Test: Boundary values - FAIL\n");
+            passed = false;
+        } else if (verbose) {
+            printf("Test: Boundary values - OK\n");
+        }
+    }
+
+    // Test 4: Division via subtraction
+    {
+        double max_err_pct = 0.0;
+
+        u64 div_pairs[][2] = {
+            {1000000, 100}, {50000, 7}, {999999, 333},
+            {65536, 256}, {1048576, 1024}, {10000, 3}
+        };
+        int n_pairs = sizeof(div_pairs) / sizeof(div_pairs[0]);
+
+        for (int i = 0; i < n_pairs; i++) {
+            u64 a = div_pairs[i][0];
+            u64 b = div_pairs[i][1];
+            u64 expected = a / b;
+
+            s32 log_a = u64_to_clog32fpmax(a);
+            s32 log_b = u64_to_clog32fpmax(b);
+            s32 log_quotient = log_a - log_b;
+            u64 recovered = clog32fpmax_to_u64(log_quotient);
+
+            double err_pct = (expected > 0) ?
+                fabs((double)recovered - (double)expected) / (double)expected * 100.0 : 0.0;
+
+            if (err_pct > max_err_pct)
+                max_err_pct = err_pct;
+
+            if (verbose) {
+                printf("  %llu / %llu: expected %llu, got %llu (%.4f%%)\n",
+                       (unsigned long long)a, (unsigned long long)b,
+                       (unsigned long long)expected, (unsigned long long)recovered, err_pct);
+            }
+        }
+
+        if (verbose) {
+            printf("Test: Division via subtraction - max error %.4f%%\n", max_err_pct);
+        }
+
+        if (max_err_pct > 3.0) {
+            if (verbose) printf("  FAIL: Division max error %.4f%% exceeds threshold 3.0%%\n", max_err_pct);
+            passed = false;
+        }
+    }
+
+    if (passed) tests_passed++;
+    else tests_failed++;
+
+    print_test_summary("Precision (Polynomial Correction)", passed);
+
+    return passed ? 1 : 0;
+}
+
 // Test: Radix conversion functions
 int test_radix_conversion(bool verbose) {
     tests_run++;
@@ -316,6 +510,7 @@ void run_all_tests(bool verbose) {
     test_loc_compression(verbose);
     test_ewma(verbose);
     test_log_arithmetic(verbose);
+    test_precision(verbose);
     test_radix_conversion(verbose);
 
     printf("\n========================================");
@@ -339,7 +534,8 @@ int main(int argc, char *argv[]) {
 #define TEST_LOC        0x02
 #define TEST_EWMA       0x04
 #define TEST_LOG        0x08
-#define TEST_RADIX      0x10
+#define TEST_PRECISION  0x10
+#define TEST_RADIX      0x20
 
     static struct option long_options[] = {
         {"verbose", no_argument, NULL, 'v'},
@@ -348,7 +544,7 @@ int main(int argc, char *argv[]) {
     };
 
     int c;
-    while ((c = getopt_long(argc, argv, "bcehlrv", long_options, NULL)) != -1) {
+    while ((c = getopt_long(argc, argv, "bcehlprv", long_options, NULL)) != -1) {
         switch (c) {
             case 'b':
                 test_mask |= TEST_BASIC;
@@ -361,6 +557,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'l':
                 test_mask |= TEST_LOG;
+                break;
+            case 'p':
+                test_mask |= TEST_PRECISION;
                 break;
             case 'r':
                 test_mask |= TEST_RADIX;
@@ -401,6 +600,9 @@ int main(int argc, char *argv[]) {
         }
         if (test_mask & TEST_LOG) {
             test_log_arithmetic(verbose);
+        }
+        if (test_mask & TEST_PRECISION) {
+            test_precision(verbose);
         }
         if (test_mask & TEST_RADIX) {
             test_radix_conversion(verbose);
