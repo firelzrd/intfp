@@ -108,8 +108,8 @@
  * @return A bitmask of type u##bits with the lower h+1 bits set to 1.
  */
 #define intfp_bitmask(h, bits) ((bits == 64)? \
-	(~0ULL >> (64-1 - (h))): \
-	(~0UL  >> (32-1 - (h))))
+	(~(u64)0 >> (64-1 - (h))): \
+	(~(u32)0 >> (32-1 - (h))))
 
 /* Min/Max constants for various integer types */
 #define intfp_unsigned_min(bits) ((u##bits)1)
