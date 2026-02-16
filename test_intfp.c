@@ -279,7 +279,7 @@ int test_precision(bool verbose) {
         printf("\n=== Testing Polynomial Correction Precision ===\n");
     }
 
-    // Test 1: Log-domain encoding accuracy (u32 -> clog32)
+    // Test 1: Log-domain encoding accuracy (u32 -> log32 corrected)
     // Compare corrected encoded value against true log2 computed via math library
     {
         double max_err = 0.0, sum_err = 0.0;
@@ -290,7 +290,7 @@ int test_precision(bool verbose) {
 
         // Test a range of values spanning multiple powers of 2
         for (u32 base = 2; base < (1U << 20); base += (base < 1024 ? 1 : base / 64)) {
-            s32 log_val = u32_to_clog32fp(base, ofp);
+            s32 log_val = u32_to_log32fp_corr(base, ofp);
             // Extract the encoded fractional log2 value
             double encoded_log2 = (double)log_val / scale;
             double true_log2 = log2((double)base);
@@ -339,10 +339,10 @@ int test_precision(bool verbose) {
                 u64 b = test_values[j];
                 u64 expected = a * b;
 
-                s32 log_a = u64_to_clog32fpmax(a);
-                s32 log_b = u64_to_clog32fpmax(b);
+                s32 log_a = u64_to_log32fpmax_corr(a);
+                s32 log_b = u64_to_log32fpmax_corr(b);
                 s32 log_product = log_a + log_b;
-                u64 recovered = clog32fpmax_to_u64(log_product);
+                u64 recovered = log32fpmax_to_u64_corr(log_product);
 
                 double err_pct = (expected > 0) ?
                     fabs((double)recovered - (double)expected) / (double)expected * 100.0 : 0.0;
@@ -380,21 +380,21 @@ int test_precision(bool verbose) {
         bool boundary_ok = true;
 
         // Zero must be preserved
-        s32 log_zero = u64_to_clog32fpmax(0ULL);
+        s32 log_zero = u64_to_log32fpmax_corr(0ULL);
         if (log_zero != intfp_log_0(32)) boundary_ok = false;
-        u64 dec_zero = clog32fpmax_to_u64(intfp_log_0(32));
+        u64 dec_zero = log32fpmax_to_u64_corr(intfp_log_0(32));
         if (dec_zero != 0) boundary_ok = false;
 
         // Value 1 must round-trip reasonably
-        s32 log_one = u64_to_clog32fpmax(1ULL);
-        u64 dec_one = clog32fpmax_to_u64(log_one);
+        s32 log_one = u64_to_log32fpmax_corr(1ULL);
+        u64 dec_one = log32fpmax_to_u64_corr(log_one);
         if (dec_one == 0 || dec_one > 2) boundary_ok = false;
 
         // Powers of 2 should have minimal error
         for (int p = 1; p < 40; p++) {
             u64 val = 1ULL << p;
-            s32 log_val = u64_to_clog32fpmax(val);
-            u64 recovered = clog32fpmax_to_u64(log_val);
+            s32 log_val = u64_to_log32fpmax_corr(val);
+            u64 recovered = log32fpmax_to_u64_corr(log_val);
             double err_pct = fabs((double)recovered - (double)val) / (double)val * 100.0;
             if (err_pct > 1.0) {
                 if (verbose) printf("  Power of 2 error: 2^%d = %llu -> %llu (%.4f%%)\n",
@@ -426,10 +426,10 @@ int test_precision(bool verbose) {
             u64 b = div_pairs[i][1];
             u64 expected = a / b;
 
-            s32 log_a = u64_to_clog32fpmax(a);
-            s32 log_b = u64_to_clog32fpmax(b);
+            s32 log_a = u64_to_log32fpmax_corr(a);
+            s32 log_b = u64_to_log32fpmax_corr(b);
             s32 log_quotient = log_a - log_b;
-            u64 recovered = clog32fpmax_to_u64(log_quotient);
+            u64 recovered = log32fpmax_to_u64_corr(log_quotient);
 
             double err_pct = (expected > 0) ?
                 fabs((double)recovered - (double)expected) / (double)expected * 100.0 : 0.0;

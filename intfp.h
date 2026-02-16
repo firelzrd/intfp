@@ -300,21 +300,21 @@ s##lbits u##hbits##_to_log##lbits##fpmax(u##hbits v) { \
 	return u##hbits##fp_to_log##lbits##fpmax(v, 0); \
 } \
 \
-/* --- Corrected Logarithmic ('clog') Representation --- */ \
+/* --- Corrected 'log' Representation (_corr suffix) --- */ \
 /** \
- * The 'clog' format improves upon 'log' by applying a polynomial correction \
+ * The '_corr' variants improve upon 'log' by applying a polynomial correction \
  * c·m·(1-m) to both encode and decode, reducing end-to-end multiplication \
  * error from ~11% to ~1.3%. The correction requires two integer multiplies \
  * per conversion but uses zero additional memory. \
  * \
- * 'clog' values share the same bit-level format as 'log' (they are just \
- * more accurate approximations of true log2), so 'clog' and 'log' values \
- * can be freely added/subtracted. However, mixing corrected and uncorrected \
- * encode/decode will degrade the precision benefit. \
+ * Corrected values share the same bit-level format as 'log' (they are just \
+ * more accurate approximations of true log2), so corrected and uncorrected \
+ * values can be freely added/subtracted. However, mixing corrected and \
+ * uncorrected encode/decode will degrade the precision benefit. \
  */ \
 \
 /** \
- * @brief Converts an unsigned fixed-point value to corrected 'clog' representation. \
+ * @brief Converts an unsigned fixed-point value to corrected 'log' representation. \
  * \
  * Applies quadratic correction: log2(1+m) ≈ m + 89/256 · m·(1-m) \
  * Reduces max log-domain error from 0.0861 to ~0.0077 (11x improvement). \
@@ -322,9 +322,9 @@ s##lbits u##hbits##_to_log##lbits##fpmax(u##hbits v) { \
  * @param v The input unsigned fixed-point value. \
  * @param ifp The number of fractional bits in the input fixed-point value `v`. \
  * @param ofp The number of bits to use for mantissa in the output value. \
- * @return The corrected 'clog' representation of the value. \
+ * @return The corrected 'log' representation of the value. \
  */ \
-s##lbits u##hbits##fp_to_clog##lbits##fp(u##hbits v, u8 ifp, u8 ofp) { \
+s##lbits u##hbits##fp_to_log##lbits##fp_corr(u##hbits v, u8 ifp, u8 ofp) { \
 	if (v == 0) return intfp_log_0(lbits); \
 	u8 clz = __intfp_clz(v, hbits); \
 	u##lbits m = (u##hbits)(v << clz) >> (hbits - 1 - ofp); \
@@ -339,18 +339,18 @@ s##lbits u##hbits##fp_to_clog##lbits##fp(u##hbits v, u8 ifp, u8 ofp) { \
 		(u##lbits)(((u64)_prod * 89) << (ofp - 40)); \
 	return (s##lbits)(((u##lbits)(hbits - 2 - clz - ifp) << ofp) + m); \
 } \
-/** @brief Converts to 'clog' using max precision, from a fixed-point value. */ \
-s##lbits u##hbits##fp_to_clog##lbits##fpmax(u##hbits v, u8 ifp) { \
-	return u##hbits##fp_to_clog##lbits##fp( \
+/** @brief Converts to corrected 'log' using max precision, from a fixed-point value. */ \
+s##lbits u##hbits##fp_to_log##lbits##fpmax_corr(u##hbits v, u8 ifp) { \
+	return u##hbits##fp_to_log##lbits##fp_corr( \
 		v, ifp, intfp_log_fpmax(hbits, lbits)); \
 } \
-/** @brief Converts an unsigned integer to corrected 'clog' representation. */ \
-s##lbits u##hbits##_to_clog##lbits##fp(u##hbits v, u8 ofp) { \
-	return u##hbits##fp_to_clog##lbits##fp(v, 0, ofp); \
+/** @brief Converts an unsigned integer to corrected 'log' representation. */ \
+s##lbits u##hbits##_to_log##lbits##fp_corr(u##hbits v, u8 ofp) { \
+	return u##hbits##fp_to_log##lbits##fp_corr(v, 0, ofp); \
 } \
-/** @brief Converts an unsigned integer to 'clog' using max precision. */ \
-s##lbits u##hbits##_to_clog##lbits##fpmax(u##hbits v) { \
-	return u##hbits##fp_to_clog##lbits##fpmax(v, 0); \
+/** @brief Converts an unsigned integer to corrected 'log' using max precision. */ \
+s##lbits u##hbits##_to_log##lbits##fpmax_corr(u##hbits v) { \
+	return u##hbits##fp_to_log##lbits##fpmax_corr(v, 0); \
 } \
 \
 /** \
@@ -390,17 +390,17 @@ u##hbits log##lbits##fpmax_to_u##hbits(s##lbits v) { \
 } \
 \
 /** \
- * @brief Converts a corrected 'clog' representation back to an unsigned fixed-point value. \
+ * @brief Converts a corrected 'log' representation back to an unsigned fixed-point value. \
  * \
  * Applies quadratic correction: 2^m ≈ (1+m) - 88/256 · m·(1-m) \
  * Corrects the decode-side error where (1+m) overestimates 2^m. \
  * \
- * @param v The input 'clog' value. \
+ * @param v The input corrected 'log' value. \
  * @param ifp The number of bits used for the exponent in the input value. \
  * @param ofp The number of fractional bits in the output fixed-point value. \
  * @return The reconstructed unsigned fixed-point value. \
  */ \
-u##hbits clog##lbits##fp_to_u##hbits##fp(s##lbits v, u8 ifp, u8 ofp) { \
+u##hbits log##lbits##fp_to_u##hbits##fp_corr(s##lbits v, u8 ifp, u8 ofp) { \
 	if (v == intfp_log_0(lbits)) return 0; \
 	bool negative = v < 0; \
 	if (negative) v = -v; \
@@ -421,18 +421,18 @@ u##hbits clog##lbits##fp_to_u##hbits##fp(s##lbits v, u8 ifp, u8 ofp) { \
 		(u##hbits)(((u64)_prod * 88) << ((hbits-1) - 40)); \
 	return norm >> (hbits-1 - scaled_e); \
 } \
-/** @brief Converts from 'clog' (max precision) to a fixed-point value. */ \
-u##hbits clog##lbits##fpmax_to_u##hbits##fp(s##lbits v, u8 ofp) { \
-	return clog##lbits##fp_to_u##hbits##fp( \
+/** @brief Converts from corrected 'log' (max precision) to a fixed-point value. */ \
+u##hbits log##lbits##fpmax_to_u##hbits##fp_corr(s##lbits v, u8 ofp) { \
+	return log##lbits##fp_to_u##hbits##fp_corr( \
 		v, intfp_log_fpmax(hbits, lbits), ofp); \
 } \
-/** @brief Converts a 'clog' value to an integer (no fractional part). */ \
-u##hbits clog##lbits##fp_to_u##hbits(s##lbits v, u8 ifp) { \
-	return clog##lbits##fp_to_u##hbits##fp(v, ifp, 0); \
+/** @brief Converts a corrected 'log' value to an integer (no fractional part). */ \
+u##hbits log##lbits##fp_to_u##hbits##_corr(s##lbits v, u8 ifp) { \
+	return log##lbits##fp_to_u##hbits##fp_corr(v, ifp, 0); \
 } \
-/** @brief Converts from 'clog' (max precision) to an unsigned integer. */ \
-u##hbits clog##lbits##fpmax_to_u##hbits(s##lbits v) { \
-	return clog##lbits##fpmax_to_u##hbits##fp(v, 0); \
+/** @brief Converts from corrected 'log' (max precision) to an unsigned integer. */ \
+u##hbits log##lbits##fpmax_to_u##hbits##_corr(s##lbits v) { \
+	return log##lbits##fpmax_to_u##hbits##fp_corr(v, 0); \
 }
 
 /* Generate conversion functions for various bit-width combinations */
