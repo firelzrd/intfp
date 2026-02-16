@@ -2,7 +2,7 @@
 #define _INTFP_H
 /*
  * Integer-based Fixed-Point and Pseudo-Logarithmic Number Library (intfp)
- * Version: 1.3
+ * Version: 1.4
  * Copyright (C) 2025 Masahito Suzuki
  *
  *
