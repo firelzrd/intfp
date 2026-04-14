@@ -210,6 +210,68 @@ const u16 __intfp_dec_corr_lut[256] = {
 };
 
 /**
+ * @brief Exact pre-computed correction tables for higher-precision log conversion.
+ *
+ * Unlike the polynomial tables above (which approximate c·m·(1-m)),
+ * these store the mathematically exact correction in Q0.16 fixed-point.
+ * 257 entries (not 256) to allow linear interpolation at the boundary.
+ *
+ * encode: lut[i] = round((log2(1 + i/256) - i/256) * 65536)
+ * decode: lut[i] = round(((1 + i/256) - 2^(i/256)) * 65536)
+ *
+ * Used by _corr_n() with level >= 2.
+ */
+const u16 __intfp_enc_corr_exact_lut[257] = {
+	    0,  113,  224,  334,  442,  549,  654,  759,  861,  963, 1063, 1162, 1259, 1355, 1450, 1544,
+	 1636, 1727, 1817, 1905, 1992, 2078, 2163, 2246, 2329, 2410, 2490, 2568, 2646, 2722, 2797, 2871,
+	 2944, 3016, 3087, 3156, 3224, 3292, 3358, 3423, 3487, 3550, 3611, 3672, 3732, 3790, 3848, 3905,
+	 3960, 4015, 4068, 4121, 4172, 4223, 4272, 4321, 4368, 4415, 4460, 4505, 4549, 4591, 4633, 4674,
+	 4714, 4753, 4791, 4828, 4864, 4900, 4934, 4968, 5001, 5032, 5063, 5093, 5123, 5151, 5178, 5205,
+	 5231, 5256, 5280, 5303, 5326, 5348, 5368, 5388, 5408, 5426, 5444, 5461, 5477, 5492, 5507, 5520,
+	 5533, 5546, 5557, 5568, 5578, 5587, 5595, 5603, 5610, 5616, 5622, 5627, 5631, 5634, 5637, 5639,
+	 5640, 5641, 5641, 5640, 5638, 5636, 5633, 5630, 5626, 5621, 5615, 5609, 5602, 5595, 5586, 5578,
+	 5568, 5558, 5547, 5536, 5524, 5511, 5498, 5484, 5470, 5455, 5439, 5422, 5406, 5388, 5370, 5351,
+	 5332, 5312, 5291, 5270, 5249, 5226, 5203, 5180, 5156, 5132, 5106, 5081, 5054, 5028, 5000, 4972,
+	 4944, 4915, 4885, 4855, 4825, 4794, 4762, 4730, 4697, 4664, 4630, 4596, 4561, 4525, 4490, 4453,
+	 4416, 4379, 4341, 4303, 4264, 4224, 4184, 4144, 4103, 4062, 4020, 3978, 3935, 3892, 3848, 3804,
+	 3759, 3714, 3668, 3622, 3575, 3528, 3481, 3433, 3384, 3335, 3286, 3236, 3186, 3135, 3084, 3033,
+	 2981, 2928, 2875, 2822, 2768, 2714, 2659, 2604, 2549, 2493, 2437, 2380, 2323, 2265, 2207, 2149,
+	 2090, 2031, 1971, 1911, 1851, 1790, 1729, 1667, 1605, 1542, 1480, 1416, 1353, 1289, 1224, 1159,
+	 1094, 1029,  963,  896,  830,  763,  695,  627,  559,  490,  421,  352,  282,  212,  142,   71,
+	    0,
+};
+const u16 __intfp_dec_corr_exact_lut[257] = {
+	    0,   78,  156,  233,  310,  387,  463,  538,  613,  687,  761,  835,  908,  980, 1052, 1124,
+	 1194, 1265, 1335, 1404, 1473, 1542, 1610, 1677, 1744, 1810, 1876, 1941, 2006, 2071, 2134, 2198,
+	 2260, 2323, 2384, 2446, 2506, 2566, 2626, 2685, 2744, 2802, 2859, 2916, 2972, 3028, 3083, 3138,
+	 3192, 3246, 3299, 3352, 3404, 3455, 3506, 3556, 3606, 3655, 3704, 3752, 3800, 3847, 3893, 3939,
+	 3984, 4029, 4073, 4116, 4159, 4202, 4244, 4285, 4326, 4366, 4405, 4444, 4482, 4520, 4557, 4594,
+	 4630, 4665, 4700, 4734, 4767, 4800, 4833, 4864, 4895, 4926, 4956, 4985, 5014, 5042, 5069, 5096,
+	 5122, 5148, 5173, 5197, 5221, 5244, 5266, 5288, 5309, 5330, 5350, 5369, 5388, 5406, 5423, 5439,
+	 5456, 5471, 5486, 5500, 5513, 5526, 5538, 5549, 5560, 5570, 5580, 5588, 5596, 5604, 5611, 5617,
+	 5622, 5627, 5631, 5634, 5637, 5639, 5640, 5641, 5641, 5640, 5638, 5636, 5633, 5630, 5625, 5620,
+	 5615, 5608, 5601, 5593, 5585, 5576, 5566, 5555, 5543, 5531, 5518, 5505, 5490, 5475, 5460, 5443,
+	 5426, 5408, 5389, 5369, 5349, 5328, 5306, 5284, 5261, 5236, 5212, 5186, 5160, 5133, 5105, 5076,
+	 5047, 5017, 4986, 4954, 4922, 4888, 4854, 4819, 4784, 4747, 4710, 4672, 4633, 4594, 4553, 4512,
+	 4470, 4427, 4384, 4339, 4294, 4248, 4201, 4153, 4105, 4055, 4005, 3954, 3902, 3849, 3796, 3741,
+	 3686, 3630, 3573, 3516, 3457, 3397, 3337, 3276, 3214, 3151, 3087, 3023, 2957, 2891, 2824, 2755,
+	 2686, 2617, 2546, 2474, 2402, 2328, 2254, 2179, 2103, 2026, 1948, 1869, 1789, 1708, 1627, 1544,
+	 1461, 1377, 1291, 1205, 1118, 1030,  941,  851,  761,  669,  576,  482,  388,  292,  196,   98,
+	    0,
+};
+
+/**
+ * @brief Linearly interpolate between adjacent LUT entries (Q0.16 result).
+ * @param lut   Pointer to the 257-entry LUT.
+ * @param idx   Top 8 bits of the mantissa (LUT index, 0..255).
+ * @param frac  Lower bits of the mantissa (interpolation weight).
+ * @param fbits Number of bits in frac.
+ * @return Interpolated correction value in Q0.16.
+ */
+#define __intfp_lut_interp(lut, idx, frac, fbits) \
+	((u16)((lut)[idx] + ((s32)((lut)[(idx)+1] - (lut)[idx]) * (frac) >> (fbits))))
+
+/**
  * @brief Generates the core conversion functions between integer, fixed-point,
  * 'pul', and 'log' representations.
  * @param hbits The bit-width of the source/destination integer or fixed-point type.
@@ -384,7 +446,10 @@ s##lbits u##hbits##fp_to_log##lbits##fp_corr(u##hbits v, u8 ifp, u8 ofp) { \
 	m += (ofp <= 16) ? \
 		(u##lbits)(__intfp_enc_corr_lut[_idx] >> (16 - ofp)) : \
 		(u##lbits)((u##lbits)__intfp_enc_corr_lut[_idx] << (ofp - 16)); \
-	return (s##lbits)(((u##lbits)(hbits - 2 - clz - ifp) << ofp) + m); \
+	{ u##lbits _r = ((u##lbits)(hbits - 2 - clz - ifp) << ofp) + m; \
+	if (_r > (u##lbits)intfp_signed_max(lbits)) \
+		_r = (u##lbits)intfp_signed_max(lbits); \
+	return (s##lbits)_r; } \
 } \
 /** @brief Converts to corrected 'log' using max precision, from a fixed-point value. */ \
 s##lbits u##hbits##fp_to_log##lbits##fpmax_corr(u##hbits v, u8 ifp) { \
@@ -479,6 +544,84 @@ u##hbits log##lbits##fp_to_u##hbits##_corr(s##lbits v, u8 ifp) { \
 /** @brief Converts from corrected 'log' (max precision) to an unsigned integer. */ \
 u##hbits log##lbits##fpmax_to_u##hbits##_corr(s##lbits v) { \
 	return log##lbits##fpmax_to_u##hbits##fp_corr(v, 0); \
+} \
+\
+/* --- Multi-level corrected 'log' (_corr_n) --- */ \
+/** \
+ * @brief Converts to 'log' with configurable correction level. \
+ * @param level 0: no correction, 1: polynomial LUT (same as _corr), \
+ *              2: exact LUT, 3: exact LUT + linear interpolation. \
+ */ \
+s##lbits u##hbits##fp_to_log##lbits##fp_corr_n(u##hbits v, u8 ifp, u8 ofp, u8 level) { \
+	if (v == 0) return intfp_log_0(lbits); \
+	if (level == 0) return u##hbits##fp_to_log##lbits##fp(v, ifp, ofp); \
+	if (level == 1) return u##hbits##fp_to_log##lbits##fp_corr(v, ifp, ofp); \
+	/* Level 2+: exact LUT */ \
+	u8 clz = __intfp_clz(v, hbits); \
+	u##lbits m = (u##hbits)(v << clz) >> (hbits - 1 - ofp); \
+	u##lbits _mf = m & intfp_bitmask(ofp - 1, lbits); \
+	u8 _idx = (ofp >= 8) ? \
+		(u8)(_mf >> (ofp - 8)) : (u8)(_mf << (8 - ofp)); \
+	u16 _corr; \
+	if (level >= 3 && ofp >= 8) { \
+		u8 _frac = (ofp >= 16) ? \
+			(u8)(_mf >> (ofp - 16)) : (u8)(_mf << (16 - ofp)); \
+		_corr = __intfp_lut_interp( \
+			__intfp_enc_corr_exact_lut, _idx, _frac, 8); \
+	} else { \
+		_corr = __intfp_enc_corr_exact_lut[_idx]; \
+	} \
+	m += (ofp <= 16) ? \
+		(u##lbits)(_corr >> (16 - ofp)) : \
+		(u##lbits)((u##lbits)_corr << (ofp - 16)); \
+	u##lbits _result = ((u##lbits)(hbits - 2 - clz - ifp) << ofp) + m; \
+	/* Clamp to s##lbits positive max to prevent sign overflow */ \
+	if (_result > (u##lbits)intfp_signed_max(lbits)) \
+		_result = (u##lbits)intfp_signed_max(lbits); \
+	return (s##lbits)_result; \
+} \
+s##lbits u##hbits##_to_log##lbits##fp_corr_n(u##hbits v, u8 ofp, u8 level) { \
+	return u##hbits##fp_to_log##lbits##fp_corr_n(v, 0, ofp, level); \
+} \
+\
+/** \
+ * @brief Converts from 'log' to integer with configurable correction level. \
+ * @param level 0: no correction, 1: polynomial LUT (same as _corr), \
+ *              2: exact LUT, 3: exact LUT + linear interpolation. \
+ */ \
+u##hbits log##lbits##fp_to_u##hbits##fp_corr_n(s##lbits v, u8 ifp, u8 ofp, u8 level) { \
+	if (level == 0) return log##lbits##fp_to_u##hbits##fp(v, ifp, ofp); \
+	if (level == 1) return log##lbits##fp_to_u##hbits##fp_corr(v, ifp, ofp); \
+	/* Level 2+: exact LUT */ \
+	if (v == intfp_log_0(lbits)) return 0; \
+	bool negative = v < 0; \
+	if (negative) v = -v; \
+	s##lbits e = v >> ifp; \
+	if (negative) e = -e; \
+	s##lbits scaled_e = e + ofp; \
+	if (scaled_e < 0) return 0; \
+	if (scaled_e >= hbits) return intfp_unsigned_max(hbits); \
+	u##hbits m = v & intfp_bitmask(ifp - 1, lbits); \
+	u##hbits norm = (u##hbits)1 << (hbits-1) | (m << (hbits-1 - ifp)); \
+	u##hbits _mh = m << (hbits - 1 - ifp); \
+	u8 _idx = ((hbits-1) >= 8) ? \
+		(u8)(_mh >> ((hbits-1) - 8)) : (u8)((u32)_mh << (8 - (hbits-1))); \
+	u16 _corr; \
+	if (level >= 3 && (hbits-1) >= 8) { \
+		u8 _frac = ((hbits-1) >= 16) ? \
+			(u8)(_mh >> ((hbits-1) - 16)) : (u8)((u32)_mh << (16 - (hbits-1))); \
+		_corr = __intfp_lut_interp( \
+			__intfp_dec_corr_exact_lut, _idx, _frac, 8); \
+	} else { \
+		_corr = __intfp_dec_corr_exact_lut[_idx]; \
+	} \
+	norm -= ((hbits-1) <= 16) ? \
+		(u##hbits)(_corr >> (16 - (hbits-1))) : \
+		(u##hbits)((u##hbits)_corr << ((hbits-1) - 16)); \
+	return norm >> (hbits-1 - scaled_e); \
+} \
+u##hbits log##lbits##fp_to_u##hbits##_corr_n(s##lbits v, u8 ifp, u8 level) { \
+	return log##lbits##fp_to_u##hbits##fp_corr_n(v, ifp, 0, level); \
 }
 
 /* Generate conversion functions for various bit-width combinations */
